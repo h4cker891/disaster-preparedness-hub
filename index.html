@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disaster Preparedness Hub</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{
+      --glass-border: rgba(255,255,255,0.14);
+      --glass-bg: rgba(255,255,255,0.06);
+      --accent: #2563eb;
+      --accent-2: #60a5fa;
+      --card-radius: 16px;
+    }
+    html,body{height:100%;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,system-ui,Arial;background:linear-gradient(180deg,#061021 0%,#0b2a4a 60%,#0b1540 100%);color:#e6eef8}
+    .app-shell{max-width:1200px;margin:0 auto;padding:28px}
+      @media (max-width:600px){
+        .app-shell{padding:10px;}
+        .grid{grid-template-columns:1fr!important;gap:12px;}
+        .card{padding:12px;}
+        .glass-card{padding:10px;}
+        header{flex-direction:column;gap:10px;padding-left:8px;padding-right:8px;}
+        .brand{padding-left:8px;padding-right:8px;}
+        .logo{width:40px;height:40px;margin-left:0;}
+        .controls{flex-direction:column;gap:6px;}
+        .risk-meter{width:100px!important;}
+        #map{height:180px;}
+        .evac-list{gap:6px;}
+        .quiz-grid{gap:6px;}
+        footer{padding:10px;font-size:.95rem;}
+      }
+    header{
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+      background:transparent;
+      border:none;
+      box-shadow:none;
+      position:static;
+      border-radius:0;
+      margin-bottom:10px;
+    }
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#7dd3fc);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 22px rgba(37,99,235,0.18);margin-left:8px;}
+    .logo svg{width:30px;height:30px}
+    .title{font-weight:700;font-size:1.25rem;letter-spacing:-0.02em}
+    .subtitle{font-size:.9rem;color:rgba(230,238,248,0.8)}
+    .glass-card {
+      backdrop-filter: blur(32px) saturate(200%);
+      background: linear-gradient(120deg, rgba(255,255,255,0.28) 0%, rgba(96,165,250,0.13) 100%);
+      border: 1.5px solid rgba(255,255,255,0.22);
+      border-radius: var(--card-radius);
+      box-shadow:
+        0 10px 30px 0 rgba(2,6,23,0.18),
+        0 1.5px 8px 0 rgba(96,165,250,0.10) inset,
+        0 0 0 1.5px rgba(255,255,255,0.18) inset,
+        0 0 32px 0 rgba(96,165,250,0.10);
+      transition: transform .22s cubic-bezier(.2,.9,.3,1), box-shadow .22s;
+      overflow: hidden;
+    }
+    .glass-card:hover {
+      transform: translateY(-6px) scale(1.012);
+      box-shadow:
+        0 22px 40px rgba(2,6,23,0.22),
+        0 0 30px rgba(37,99,235,0.10),
+        0 2px 16px 0 rgba(96,165,250,0.12) inset,
+        0 0 0 2px rgba(96,165,250,0.13) inset;
+    }
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;margin-top:20px}
+    @media (max-width:700px){
+      .grid{grid-template-columns:1fr!important;gap:14px;}
+      .card{padding:12px;}
+      .glass-card{padding:10px;}
+      header{flex-direction:column;gap:10px;}
+      .controls{flex-direction:column;gap:6px;}
+      .risk-meter{width:100px!important;}
+      #map{height:180px;}
+      .evac-list{gap:6px;}
+      .quiz-grid{gap:6px;}
+      footer{padding:10px;font-size:.95rem;}
+      .brand .title{font-size:1.1rem;}
+      .col-span-4, .col-span-8, .col-span-12 {
+        grid-column:span 12 !important;
+      }
+      aside.card {
+        order: 2;
+        margin-top: 0 !important;
+      }
+      section.card {
+        order: 1;
+      }
+      section.card.col-span-12 {
+        order: 3;
+      }
+    }
+    @media (max-width:900px){.col-span-4,.col-span-8{grid-column:span 12}.brand .title{font-size:1rem}}
+    @media (max-width:700px){
+      .grid{grid-template-columns:1fr!important;gap:14px;}
+      .card{padding:12px;}
+      .glass-card{padding:10px;}
+      header{flex-direction:column;gap:10px;}
+      .controls{flex-direction:column;gap:6px;}
+      .risk-meter{width:100px!important;}
+      #map{height:180px;}
+      .evac-list{gap:6px;}
+      .quiz-grid{gap:6px;}
+      footer{padding:10px;font-size:.95rem;}
+      .brand .title{font-size:1.1rem;}
+    }
+    .card{padding:20px}
+    .col-span-4{grid-column:span 4}
+    .col-span-8{grid-column:span 8}
+    .col-span-12{grid-column:span 12}
+    .risk-meter{height:12px;background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));border-radius:999px;overflow:hidden}
+    .risk-bar{height:100%;transition:width .6s ease}
+    #map{height:340px;border-radius:12px}
+    .controls{display:flex;gap:8px;align-items:center;padding:10px 22px;border-radius:12px;}
+    .input{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:inherit}
+    .btn{padding:10px 14px;border-radius:12px;background:linear-gradient(90deg,var(--accent),#1e40af);color:white;font-weight:600;border:none}
+    .muted{color:rgba(230,238,248,0.7);font-size:.9rem}
+    .alerts-list>div{margin-bottom:12px}
+    .alert-pill{padding:10px;border-radius:12px;background:linear-gradient(90deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04)}
+    .evac-list{display:flex;flex-direction:column;gap:10px}
+    .small{font-size:.85rem}
+    .quiz-grid{display:grid;gap:10px}
+    .quiz-option{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);cursor:pointer;border:1px solid rgba(255,255,255,0.04)}
+    .hidden{display:none}
+    footer{margin-top:30px;padding:18px;text-align:center;color:rgba(230,238,248,0.6)}
+    @media (max-width:900px){.col-span-4,.col-span-8{grid-column:span 12}.brand .title{font-size:1rem}}
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.min.js"></script>
+  <div id="particles-bg" style="position:fixed;inset:0;z-index:0;pointer-events:none;width:100vw;height:100vh;"></div>
+  <div id="blob-bg" style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;overflow:hidden">
+    <svg id="blobSVG" width="520" height="520" viewBox="0 0 520 520" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:10%;left:50%;transform:translateX(-50%);filter:blur(32px) saturate(180%) drop-shadow(0 0 64px #60a5fa88) drop-shadow(0 0 32px #fff2);">
+      <path id="blobPath" fill="url(#blobGradient)" opacity="0.48" stroke="rgba(255,255,255,0.22)" stroke-width="2.5" d="M260,60C340,60,460,140,460,260C460,380,340,460,260,460C180,460,60,380,60,260C60,140,180,60,260,60Z"/>
+      <defs>
+        <radialGradient id="blobGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+          <stop offset="0%" stop-color="#e0f2fe"/>
+          <stop offset="60%" stop-color="#60a5fa"/>
+          <stop offset="100%" stop-color="#2563eb"/>
+        </radialGradient>
+      </defs>
+    </svg>
+  </div>
+  
+  <div id="zipOverlay" style="position:fixed;inset:0;z-index:1001;background:rgba(2,6,23,0.82);backdrop-filter:blur(18px) saturate(180%);display:flex;align-items:center;justify-content:center;">
+    <div style="background:linear-gradient(120deg,rgba(255,255,255,0.22) 0%,rgba(96,165,250,0.10) 100%);backdrop-filter:blur(24px) saturate(180%);border:1.5px solid rgba(255,255,255,0.22);box-shadow:0 8px 32px rgba(2,6,23,0.22),0 1.5px 8px 0 rgba(96,165,250,0.10) inset;padding:32px 28px 28px 28px;border-radius:18px;min-width:320px;max-width:90vw;text-align:center;overflow:hidden;">
+      <div style="font-size:1.3rem;font-weight:700;margin-bottom:10px;">Enter Your ZIP Code</div>
+      <div style="color:rgba(230,238,248,0.8);margin-bottom:18px;">To personalize alerts and resources for your area</div>
+      <input id="zipOverlayInput" class="input" style="width:160px;text-align:center;font-size:1.1rem;" maxlength="5" placeholder="ZIP Code" aria-label="ZIP code" autofocus />
+      <button id="zipOverlayBtn" class="btn" style="margin-left:10px;">Continue</button>
+      <div id="zipOverlayError" style="color:#ef4444;margin-top:10px;display:none;font-size:.95rem"></div>
+    </div>
+  </div>
+  <script>
+  (function(){
+      const blob = document.getElementById('blobSVG');
+      const path = document.getElementById('blobPath');
+      if(!blob || !path) return;
+    const shapes = [
+        "M260,60C340,60,460,140,460,260C460,380,340,460,260,460C180,460,60,380,60,260C60,140,180,60,260,60Z",
+        "M260,80C370,40,480,180,440,300C400,420,320,480,200,440C80,400,40,320,80,200C120,80,150,120,260,80Z",
+        "M260,60C400,100,480,220,420,340C360,460,220,480,120,400C20,320,60,180,180,120C300,60,120,60,260,60Z",
+        "M260,100C340,60,480,180,440,300C400,420,320,480,200,440C80,400,40,320,80,200C120,80,180,140,260,100Z"
+      ];
+      let i = 0;
+      function morphBlob(){
+        i = (i+1)%shapes.length;
+        path.setAttribute('d', shapes[i]);
+      }
+      setInterval(morphBlob, 3200);
+    let t = 0;
+      function floatBlob(){
+        t += 0.02;
+        const y = 10 + Math.sin(t)*18;
+        blob.style.top = `${y}%`;
+      }
+      setInterval(floatBlob, 40);
+    })();
+    (function(){
+      var modal = document.getElementById('modalPrep');
+      if(modal && !modal.classList.contains('hidden')){
+        modal.classList.add('hidden');
+      }
+    })();
+  </script>
+  <script>
+    // Particle background using tsParticles v2.x (robust global fallback)
+    window.addEventListener('DOMContentLoaded', function() {
+      function loadParticles() {
+        var el = document.getElementById('particles-bg');
+        if (window.tsParticles && el) {
+          window.tsParticles.load('particles-bg', {
+            background: { color: { value: 'transparent' } },
+            fpsLimit: 60,
+            particles: {
+              number: { value: 120, density: { enable: true, area: 900 } },
+              color: { value: ['#60a5fa', '#2563eb', '#fff', '#7dd3fc', '#e0f2fe'] },
+              shape: { type: 'circle' },
+              opacity: { value: 0.55, random: true },
+              size: { value: 5.5, random: { enable: true, minimumValue: 2.5 } },
+              move: {
+                enable: true,
+                speed: 1.2,
+                direction: 'none',
+                random: false,
+                straight: false,
+                outModes: { default: 'out' },
+                attract: { enable: false }
+              },
+              links: {
+                enable: true,
+                distance: 110,
+                color: '#60a5fa',
+                opacity: 0.18,
+                width: 1.1
+              }
+            },
+            interactivity: {
+              events: {
+                onHover: { enable: true, mode: 'repulse' },
+                onClick: { enable: true, mode: 'push' },
+                resize: true
+              },
+              modes: {
+                repulse: { distance: 120, duration: 0.4 },
+                push: { quantity: 6 }
+              }
+            },
+            detectRetina: true
+          });
+        } else if (window.particlesJS && el) {
+          window.particlesJS.load('particles-bg', {
+            background: { color: { value: 'transparent' } },
+            fpsLimit: 60,
+            particles: {
+              number: { value: 60, density: { enable: true, area: 900 } },
+              color: { value: ['#60a5fa', '#2563eb', '#fff', '#7dd3fc'] },
+              shape: { type: 'circle' },
+              opacity: { value: 0.32, random: true },
+              size: { value: 3.5, random: { enable: true, minimumValue: 1.5 } },
+              move: {
+                enable: true,
+                speed: 1.2,
+                direction: 'none',
+                random: false,
+                straight: false,
+                outModes: { default: 'out' },
+                attract: { enable: false }
+              },
+              links: {
+                enable: true,
+                distance: 110,
+                color: '#60a5fa',
+                opacity: 0.18,
+                width: 1.1
+              }
+            },
+            interactivity: {
+              events: {
+                onHover: { enable: true, mode: 'repulse' },
+                onClick: { enable: true, mode: 'push' },
+                resize: true
+              },
+              modes: {
+                repulse: { distance: 120, duration: 0.4 },
+                push: { quantity: 6 }
+              }
+            },
+            detectRetina: true
+          });
+        } else {
+          setTimeout(loadParticles, 200);
+        }
+      }
+      loadParticles();
+    });
+  </script>
+  <div class="app-shell" id="mainAppShell" style="display:none;filter:blur(0);pointer-events:auto;opacity:1;z-index:1;position:relative;">
+    <header>
+      <div class="brand">
+        <div class="logo">
+          <img src="logo.png" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;" />
+        </div>
+        <div>
+          <div class="title">Disaster Preparedness Hub</div>
+          <div class="subtitle">Real-time alerts, evacuation planning, and checklists</div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="muted">Location</div>
+        <input id="zipCode" class="input" placeholder="Enter ZIP" aria-label="ZIP code" />
+        <button id="getLocation" class="btn">Lookup</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="glass-card card col-span-8">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <div class="muted">Location</div>
+            <div id="currentZip" style="font-weight:700;font-size:1.1rem">—</div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted">Overall Risk</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div id="riskPercent" style="font-weight:800;font-size:1.2rem;color:var(--accent-2)">0%</div>
+              <div class="risk-meter" style="width:180px">
+                <div id="riskBar" class="risk-bar" style="width:0%;background:linear-gradient(90deg,#60a5fa,#2563eb)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:18px;display:grid;grid-template-columns:1fr 280px;gap:18px">
+          <div>
+            <div class="muted small">Active Alerts</div>
+            <div id="alertList" class="alerts-list" style="margin-top:10px">
+              <div class="muted">No data</div>
+            </div>
+          </div>
+          <div>
+            <div class="muted small">Quick Actions</div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+              <button id="prepKitBtn" class="btn">View Emergency Kit</button>
+              <button id="evacPlanBtn" class="btn" style="background:linear-gradient(90deg,#ef4444,#dc2626)">Evacuation Plan</button>
+              <button id="shareBtn" class="btn" style="background:linear-gradient(90deg,#16a34a,#059669)">Share Location</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div class="muted small">Map of affected areas</div>
+          <div id="map" style="margin-top:12px"></div>
+        </div>
+      </section>
+
+      <aside class="glass-card card col-span-4">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="muted">Evacuation & Shelters</div>
+            <div style="font-weight:700">Nearest Options</div>
+          </div>
+          <div style="text-align:right">
+            <button id="changeZip" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px 10px">Change</button>
+          </div>
+        </div>
+        <div class="evac-list" id="routes" style="margin-top:14px">
+          <div class="muted">No shelters loaded</div>
+        </div>
+        <div style="margin-top:18px">
+          <div class="muted">Emergency Contacts</div>
+          <ul style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+            <li><a href="tel:911" class="muted">911 — Emergency Services</a></li>
+            <li><a href="tel:1-800-621-3362" class="muted">FEMA — 1-800-621-3362</a></li>
+            <li><a href="tel:1-800-733-2767" class="muted">Red Cross — 1-800-733-2767</a></li>
+          </ul>
+        </div>
+        <div style="margin-top:14px">
+          <div class="muted">Preparedness Tips</div>
+          <ol style="margin-top:8px;line-height:1.5">
+            <li>Assemble a 72-hour kit with food, water, meds.</li>
+            <li>Create and rehearse a family plan.</li>
+            <li>Keep documents in a waterproof folder.</li>
+          </ol>
+        </div>
+      </aside>
+
+      <section class="glass-card card col-span-12">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="muted">Preparedness Quiz</div>
+            <div style="font-weight:700">Test Your Knowledge</div>
+          </div>
+          <div>
+            <button id="startQuiz" class="btn">Start Quiz</button>
+          </div>
+        </div>
+        <div id="quizArea" style="margin-top:16px" class="hidden">
+          <div id="quizContent" style="display:grid;gap:12px">
+            <div id="questionText" style="font-weight:700"></div>
+            <div id="options" class="quiz-grid"></div>
+            <div style="display:flex;gap:8px">
+              <button id="submitAnswer" class="btn">Submit</button>
+              <button id="nextQuestion" class="btn" style="background:linear-gradient(90deg,#6b7280,#374151)">Next</button>
+              <div id="quizStatus" class="muted" style="align-self:center"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      Uses APIs from NOAA, Leaflet, OpenStreetMap
+    </footer>
+  </div>
+
+  <div id="modalPrep" class="hidden" style="position:fixed;inset:0;z-index:1002;background:rgba(2,6,23,0.82);backdrop-filter:blur(18px) saturate(180%);display:none;align-items:center;justify-content:center">
+    <div style="width:min(680px,96%);background:linear-gradient(120deg,rgba(255,255,255,0.22) 0%,rgba(96,165,250,0.10) 100%);backdrop-filter:blur(24px) saturate(180%);border:1.5px solid rgba(255,255,255,0.22);box-shadow:0 8px 32px rgba(2,6,23,0.22),0 1.5px 8px 0 rgba(96,165,250,0.10) inset;padding:18px;border-radius:14px;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">Emergency Kit Checklist</div>
+        <button id="closePrep" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06)">Close</button>
+      </div>
+      <ul style="margin-top:12px;line-height:1.6">
+        <li>Water — 1 gallon per person per day (3 days)</li>
+        <li>Non-perishable food (3 days)</li>
+        <li>First aid kit & medications</li>
+        <li>Flashlight, batteries, radio</li>
+        <li>Copies of important documents</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+
+
+    const quizQuestions = [
+      {question: 'What should be in your emergency kit?',options: ['Food, water, flashlight','Clothes, books, toys','Electronics, snacks, games'],correct:0},
+      {question: 'What is the first step in a family communication plan?',options: ['Designate a meeting point','Buy a new phone','Plan a vacation'],correct:0}
+    ]
+    let currentQuestion = 0
+    let score = 0
+
+    const showQuizQuestion = () => {
+      const q = quizQuestions[currentQuestion]
+      document.getElementById('questionText').textContent = q.question
+      const optionsEl = document.getElementById('options')
+      optionsEl.innerHTML = ''
+      q.options.forEach((opt,i)=>{
+        const btn = document.createElement('div')
+        btn.className = 'quiz-option'
+        btn.tabIndex = 0
+        btn.dataset.index = i
+        btn.innerHTML = `<div style=\"flex:1\">${opt}</div>`
+        btn.addEventListener('click',()=>{Array.from(optionsEl.children).forEach(c=>c.classList.remove('selected'));btn.classList.add('selected')})
+        optionsEl.appendChild(btn)
+      })
+      document.getElementById('quizStatus').textContent = `${currentQuestion+1}/${quizQuestions.length}`
+    }
+
+    const checkAnswer = () => {
+      const selected = document.querySelector('#options .selected')
+      if(!selected) return
+      const index = Number(selected.dataset.index)
+      const correct = quizQuestions[currentQuestion].correct
+      if(index === correct){score++
+        alert('Correct!')
+      } else {
+        alert('Incorrect. The correct answer is: ' + quizQuestions[currentQuestion].options[correct])
+      }
+      currentQuestion++
+      if(currentQuestion < quizQuestions.length){showQuizQuestion()} else {document.getElementById('quizContent').innerHTML = `<div style=\"font-weight:700\">Quiz complete! Your score: ${score}/${quizQuestions.length}</div>`}
+    }
+
+    const initMap = (lat,lon) => {
+      if(window._map) window._map.remove()
+      window._map = L.map('map',{zoomControl:true}).setView([lat,lon],9)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(window._map)
+      L.marker([lat,lon]).addTo(window._map).bindPopup('Location').openPopup()
+    }
+
+    const fetchWeatherAlerts = async (lat,lon) => {
+      try{
+        const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`,{headers:{'User-Agent':'DisasterPrepHub/1.0 (contact@example.com)'}})
+        if(!res.ok) throw new Error('No alerts')
+        const data = await res.json()
+        const alerts = (data.features||[]).map(a=>({event:a.properties.event,description:a.properties.description||a.properties.headline,expires:new Date(a.properties.expires).toLocaleString(),severity:a.properties.severity,geometry:a.geometry}))
+        const risk = alerts.reduce((acc,alert)=>{const w={'Extreme':30,'Severe':20,'Moderate':10,'Minor':5,'Unknown':5};return acc + (w[alert.severity]||5)},0)
+        return {alerts,risk:Math.min(risk,100)}
+      }catch(e){return {alerts:[],risk:0,error:e.message}}
+    }
+
+    const fetchEvacuationRoutes = async (zip,lat,lon,retries=2) => {
+      try{
+        const f = await fetch(`https://www.fema.gov/api/open/v1/NationalShelterSystemFacilities?$filter=latitude gt ${lat-0.5} and latitude lt ${lat+0.5} and longitude gt ${lon-0.5} and longitude lt ${lon+0.5}&$top=3&$select=facilityName,address,city,state,zip`,{headers:{'User-Agent':'DisasterPrepHub/1.0 (contact@example.com)'}})
+        if(f.ok){const d = await f.json();if(d.NationalShelterSystemFacilities?.length>0)return d.NationalShelterSystemFacilities.map(s=>`${s.facilityName}, ${s.address}, ${s.city}, ${s.state} ${s.zip}`)}
+        const n = await fetch(`https://nominatim.openstreetmap.org/search?q=emergency+shelter+near+${zip},USA&format=json&limit=3`,{headers:{'User-Agent':'DisasterPrepHub/1.0 (contact@example.com)'}})
+        if(n.ok){const nd = await n.json();if(nd.length>0) return nd.map(s=>`${s.display_name} (lat:${s.lat},lon:${s.lon})`).join('\n')}
+        return 'No shelters found nearby. Follow local evacuation signs or contact authorities.'
+      }catch(e){return `Unable to fetch shelter data: ${e.message}`}
+    }
+
+    const getCoordinates = async (zip,retries=2) => {
+      try{
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${zip},USA&format=json&limit=1`,{headers:{'User-Agent':'DisasterPrepHub/1.0 (contact@example.com)'}})
+        if(!r.ok) throw new Error('Lookup failed')
+        const d = await r.json()
+        if(d.length>0) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)}
+        throw new Error('Invalid ZIP')
+      }catch(e){return null}
+    }
+
+  window.handleZipSubmit = async () => {
+      const zip = document.getElementById('zipCode').value.trim()
+      if(!zip.match(/^\d{5}$/)) {alert('Enter a valid 5-digit ZIP');return}
+      document.getElementById('currentZip').textContent = zip
+      const coords = await getCoordinates(zip)
+      if(!coords){document.getElementById('alertList').innerHTML = '<div class=\"muted\">Unable to fetch location data.</div>';document.getElementById('routes').textContent = 'Unable to fetch location data.';return}
+      initMap(coords.lat,coords.lon)
+      const {alerts,risk,error} = await fetchWeatherAlerts(coords.lat,coords.lon)
+      const alertList = document.getElementById('alertList')
+      if(error){alertList.innerHTML = `<div class=\"muted\">Error fetching alerts: ${error}</div>`} else if(alerts.length>0){alertList.innerHTML = alerts.map(a=>`<div class=\"alert-pill\"><div style=\"font-weight:700;color:var(--accent-2)\">${a.event}</div><div style=\"margin-top:6px\">${a.description||''}</div><div style=\"margin-top:8px;font-size:.85rem;color:rgba(230,238,248,0.7)\">Expires: ${a.expires}</div></div>`).join('');alerts.forEach(a=>{if(a.geometry){L.geoJSON(a.geometry,{style:{color:'#60a5fa',fillColor:'#1e3a8a',fillOpacity:0.25}}).addTo(window._map).bindPopup(a.event)} else {L.circle([coords.lat,coords.lon],{color:'#60a5fa',fillColor:'#1e3a8a',fillOpacity:0.2,radius:10000}).addTo(window._map).bindPopup(a.event)}})} else {alertList.innerHTML = '<div class=\"muted\">No active alerts for this area.</div>'}
+      document.getElementById('riskPercent').textContent = `${risk}%`
+      const bar = document.getElementById('riskBar')
+      bar.style.width = `${risk}%`
+      if(risk>60) bar.style.background = 'linear-gradient(90deg,#ef4444,#dc2626)'
+      else if(risk>30) bar.style.background = 'linear-gradient(90deg,#f59e0b,#f97316)'
+      else bar.style.background = 'linear-gradient(90deg,#60a5fa,#2563eb)'
+      const routes = await fetchEvacuationRoutes(zip,coords.lat,coords.lon)
+      const routesEl = document.getElementById('routes')
+      if(typeof routes === 'string'){
+        routesEl.innerHTML = routes.split('\n').map(r=>`<div style=\"padding:10px;border-radius:10px;background:rgba(255,255,255,0.02)\">${r}</div>`).join('')
+      } else {
+        routesEl.innerHTML = '<div class="muted">No shelters found</div>'
+      }
+    }
+
+    const byId = id => document.getElementById(id);
+  if (byId('getLocation')) byId('getLocation').addEventListener('click', window.handleZipSubmit);
+  if (byId('zipCode')) byId('zipCode').addEventListener('keypress', e => { if (e.key === 'Enter') window.handleZipSubmit(); });
+    if (byId('changeZip')) byId('changeZip').addEventListener('click', () => {
+      byId('currentZip').textContent = '—';
+      byId('zipCode').value = '';
+      byId('alertList').innerHTML = '<div class="muted">No data</div>';
+      byId('routes').innerHTML = '<div class="muted">No shelters loaded</div>';
+      if (window._map) window._map.setView([39.5, -98.35], 4);
+    });
+
+    if (byId('startQuiz')) byId('startQuiz').addEventListener('click', () => { currentQuestion = 0; score = 0; byId('quizArea').classList.remove('hidden'); showQuizQuestion(); });
+    if (byId('submitAnswer')) byId('submitAnswer').addEventListener('click', checkAnswer);
+    if (byId('nextQuestion')) byId('nextQuestion').addEventListener('click', () => { if (currentQuestion < quizQuestions.length) showQuizQuestion(); });
+
+    if (byId('prepKitBtn')) byId('prepKitBtn').addEventListener('click', () => {
+      const modal = byId('modalPrep');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      }
+    });
+    if (byId('closePrep')) byId('closePrep').addEventListener('click', () => {
+      const modal = byId('modalPrep');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      const modal = byId('modalPrep');
+      if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+      }
+    });
+    document.addEventListener('keydown', function(e) {
+      const modal = byId('modalPrep');
+      if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+      }
+    });
+
+    if (byId('evacPlanBtn')) byId('evacPlanBtn').addEventListener('click', () => { alert('Open local evacuation plan resources or contact local authorities for official routes.'); });
+    if (byId('shareBtn')) byId('shareBtn').addEventListener('click', () => { const z = byId('currentZip').textContent; navigator.clipboard.writeText(`Location ZIP: ${z}`).then(() => alert('Location copied to clipboard')); });
+
+    initMap(39.5, -98.35);
+// Removed duplicate DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', function() {
+  var app = document.getElementById('mainAppShell');
+  var overlay = document.getElementById('zipOverlay');
+  if(app && overlay){
+    app.style.display = 'none';
+    overlay.style.display = 'flex';
+  }
+  // Overlay ZIP logic
+  const input = document.getElementById('zipOverlayInput');
+  const btn = document.getElementById('zipOverlayBtn');
+  const error = document.getElementById('zipOverlayError');
+  function submitZip() {
+    const zip = input.value.trim();
+    if(!zip.match(/^\d{5}$/)) {
+      error.textContent = 'Please enter a valid 5-digit ZIP code.';
+      error.style.display = 'block';
+      return;
+    }
+    // Set main input and trigger lookup
+    var mainInput = document.getElementById('zipCode');
+    if(mainInput) mainInput.value = zip;
+    if(typeof window.handleZipSubmit === 'function') window.handleZipSubmit();
+    // Hide overlay, show app
+    overlay.style.display = 'none';
+    app.style.display = '';
+    app.style.filter = 'blur(0)';
+    app.style.pointerEvents = 'auto';
+    app.style.opacity = '1';
+  }
+  if(btn) btn.addEventListener('click', submitZip);
+  if(input) input.addEventListener('keypress', function(e){ if(e.key==='Enter') submitZip(); });
+});
+  </script>
+</body>
+</html>
